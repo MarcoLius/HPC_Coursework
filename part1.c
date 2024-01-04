@@ -2,14 +2,12 @@
 #include <math.h>				// needed for tanh, used in init function
 #include "params.h"				// model & simulation parameters
 
-//#include "/opt/homebrew/Cellar/libomp/17.0.6/include/omp.h"
-
 #include "omp.h"                // include openmp header file
 
 void init(double u[N][N], double v[N][N]){
 	double uhi, ulo, vhi, vlo;
 	uhi = 0.5; ulo = -0.5; vhi = 0.1; vlo = -0.1;
-    #pragma omp parallel for collaspe(2)
+    #pragma omp parallel for collapse(2)
 	for (int i=0; i < N; i++){
 		for (int j=0; j < N; j++){
 			u[i][j] = ulo + (uhi-ulo)*0.5*(1.0 + tanh((i-N/2)/16.0));
@@ -21,6 +19,7 @@ void init(double u[N][N], double v[N][N]){
 void dxdt(double du[N][N], double dv[N][N], double u[N][N], double v[N][N]){
 	double lapu, lapv;
 	int up, down, left, right;
+    #pragma omp parallel for private(lapu, lapv, up, down, left, right) collapse(2)
 	for (int i = 0; i < N; i++){
 		for (int j = 0; j < N; j++){
 			if (i == 0){
@@ -56,6 +55,7 @@ void dxdt(double du[N][N], double dv[N][N], double u[N][N], double v[N][N]){
 }
 
 void step(double du[N][N], double dv[N][N], double u[N][N], double v[N][N]){
+    #pragma omp parallel for collapse(2)
 	for (int i = 0; i < N; i++){
 		for (int j = 0; j < N; j++){
 			u[i][j] += dt*du[i][j];
@@ -66,6 +66,7 @@ void step(double du[N][N], double dv[N][N], double u[N][N], double v[N][N]){
 
 double norm(double x[N][N]){
 	double nrmx = 0.0;
+    #pragma omp parallel for reduction(+:nrmx) collapse(2)
 	for (int i = 0; i < N; i++){
 		for (int j = 0; j < N; j++){
 			nrmx += x[i][j]*x[i][j];

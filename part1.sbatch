@@ -13,8 +13,8 @@
 module purge
 module load gcc
 
-# compile part2.c into part2
-gcc -fopenmp -lm part2.c -o part2
+# compile part1.c into part1
+gcc -fopenmp -lm part1.c -o part1
 
-# run part2 with 4 threads
-OMP_NUM_THREADS=4 ./part2
+# run part1 with 4 threads
+OMP_NUM_THREADS=4 ./part1
