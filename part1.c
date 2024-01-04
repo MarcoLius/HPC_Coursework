@@ -2,11 +2,9 @@
 #include <math.h>				// needed for tanh, used in init function
 #include "params.h"				// model & simulation parameters
 
-#include "/opt/homebrew/Cellar/libomp/17.0.6/include/omp.h"
+//#include "/opt/homebrew/Cellar/libomp/17.0.6/include/omp.h"
 
-/*
 #include "omp.h"                // include openmp header file
-*/
 
 void init(double u[N][N], double v[N][N]){
 	double uhi, ulo, vhi, vlo;
