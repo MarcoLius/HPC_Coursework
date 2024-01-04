@@ -1,6 +1,9 @@
 #!/bin/bash
 
 # Request resources:
+#SBATCH --job-name="part1"
+#SBATCH -o part1.%J.out
+#SBATCH -e part1.%J.err
 #SBATCH -N 1		# number of compute nodes. 
 #SBATCH -c 4		# number of CPU cores, one per thread, up to 128
 #SBATCH --mem=1G	# memory required, up to 250G on standard nodes
