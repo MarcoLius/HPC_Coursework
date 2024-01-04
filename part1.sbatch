@@ -20,4 +20,7 @@ module load gcc
 gcc -fopenmp -lm part1.c -o part1
 
 # run part1 with 4 threads
-OMP_NUM_THREADS=4 time ./part1
+export OMP_NUM_THREADS=4
+
+# Test the time of running
+time ./part1
