@@ -20,4 +20,4 @@ module load gcc
 gcc -fopenmp -lm part1.c -o part1
 
 # run part1 with 4 threads
-OMP_NUM_THREADS=4 ./part1
+OMP_NUM_THREADS=4 time ./part1
