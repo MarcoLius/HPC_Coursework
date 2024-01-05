@@ -2,7 +2,7 @@
 #define _XOPEN_SOURCE
 
 const int N 	= 128;			// domain size
-const int M		= 50000;		// number of time steps
+const int M		= 200000;		// number of time steps
 const double a 	= 0.3;			// model parameter a
 const double b 	= 0.1;			// model parameter b
 const double c 	= 0.01;			// model parameter c
