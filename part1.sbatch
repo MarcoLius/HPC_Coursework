@@ -19,24 +19,8 @@ module load gcc
 # compile part1.c into part1
 gcc -fopenmp -lm part1.c -o part1
 
-# Make an array of the number of threads
-declare thread_counts=(1 2 4 8 16)
-
-# Declare a file to store the results
-output_file="time_results.txt"
-
-# Create the output file
-> $output_file
-
-# Use for loop to test the time with different number of threads
-for threads in "${thread_counts[@]}"; do
-    export OMP_NUM_THREADS=$threads
-    echo "Running with $threads threads" >> $output_file
-    (time ./part1) >& $output_file
-done
-
 # run part1 with 4 threads
-#export OMP_NUM_THREADS=4
+export OMP_NUM_THREADS=4
 
 # Test the time of running
-#time ./part1
+time ./part1
