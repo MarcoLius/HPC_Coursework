@@ -32,7 +32,7 @@ output_file="time_results.txt"
 for threads in "${thread_counts[@]}"; do
     export OMP_NUM_THREADS=$threads
     echo "Running with $threads threads" >> $output_file
-    /usr/bin/time -o $output_file -a ./part1
+    (time ./part1) >& $output_file
 done
 
 # run part1 with 4 threads
