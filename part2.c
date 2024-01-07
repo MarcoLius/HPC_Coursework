@@ -2,15 +2,49 @@
 #include <math.h>				// needed for tanh, used in init function
 #include "params.h"				// model & simulation parameters
 
-void init(double u[N][N], double v[N][N]){
+#include "mpi.h"
+
+
+void init(double local_u[N][N], double local_v[N][N], double u[N][N], double v[N][N], int rank, int size){
 	double uhi, ulo, vhi, vlo;
-	uhi = 0.5; ulo = -0.5; vhi = 0.1; vlo = -0.1;
-	for (int i=0; i < N; i++){
+    int portion_size = (N - N % size) / size;
+    int rest_size = N % size;
+    if (rank == 0){
+        uhi = 0.5; ulo = -0.5; vhi = 0.1; vlo = -0.1;
+        MPI_Bcast(&uhi, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Bcast(&ulo, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Bcast(&vhi, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Bcast(&vlo, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    }
+
+    int start, end;
+    if (rest_size == 0){
+        start = portion_size * rank;
+        end = start + portion_size;
+    }else{
+        if (rank == 0){
+            start = 0;
+            end = rest_size;
+        }else{
+            start = portion_size * (rank - 1) + rest_size;
+            end = start + portion_size;
+        }
+    }
+
+	for (int i=start; i < end; i++){
 		for (int j=0; j < N; j++){
-			u[i][j] = ulo + (uhi-ulo)*0.5*(1.0 + tanh((i-N/2)/16.0));
-			v[i][j] = vlo + (vhi-vlo)*0.5*(1.0 + tanh((j-N/2)/16.0));
+			local_u[i][j] = ulo + (uhi-ulo)*0.5*(1.0 + tanh((i-N/2)/16.0));
+			local_v[i][j] = vlo + (vhi-vlo)*0.5*(1.0 + tanh((j-N/2)/16.0));
+            MPI_Allreduce(&local_u[i][j], &u[i][j], 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            MPI_Allreduce(&local_v[i][j], &v[i][j], 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            //MPI_Bcast(&local_u[i][j], 1, MPI_DOUBLE, rank, MPI_COMM_WORLD);
+            //MPI_Bcast(&local_v[i][j], 1, MPI_DOUBLE, rank, MPI_COMM_WORLD);
 		}
 	}
+
+    for (int i = 0; i < N; i++) {
+        printf("The u[%d] = %2f from Rank %d.\n",i , local_u[i][0], rank);
+    }
 }
 
 void dxdt(double du[N][N], double dv[N][N], double u[N][N], double v[N][N]){
@@ -70,16 +104,22 @@ double norm(double x[N][N]){
 }
 
 int main(int argc, char** argv){
-	
+
+    int rank, size;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
 	double t = 0.0, nrmu, nrmv;
+    double local_u[N][N], local_v[N][N];
 	double u[N][N], v[N][N], du[N][N], dv[N][N];
 	
 	FILE *fptr = fopen("nrms.txt", "w");
 	fprintf(fptr, "#t\t\tnrmu\t\tnrmv\n");
-	
+
 	// initialize the state
-	init(u, v);
-	
+	init(local_u, local_v, u, v, rank, size);
+
 	// time-loop
 	for (int k=0; k < M; k++){
 		// track the time
@@ -96,7 +136,7 @@ int main(int argc, char** argv){
 			fprintf(fptr, "%f\t%f\t%f\n", t, nrmu, nrmv);
 		}
 	}
-	
+	MPI_Finalize();
 	fclose(fptr);
 	return 0;
 }
