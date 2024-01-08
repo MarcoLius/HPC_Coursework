@@ -12,7 +12,7 @@ const double dx	= 2.0;			// spatial resolution
 const double DD = 1.0/(dx*dx);	// diffusion scaling
 const int m		= 200;			// Norm calculation period
 
-void init(double local_u[N][N], double local_v[N][N], double u[N][N], double v[N][N], int rank, int size);
+void init(double local_u[N][N], double local_v[N][N], int start, int row_size);
 
 void step(double du[N][N], double dv[N][N], double u[N][N], double v[N][N]);
 

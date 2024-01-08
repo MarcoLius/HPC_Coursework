@@ -4,47 +4,19 @@
 
 #include "mpi.h"
 
-
-void init(double local_u[N][N], double local_v[N][N], double u[N][N], double v[N][N], int rank, int size){
+// Modify the parameters of init function to fit the constructs of divided arrays in each processor
+void init(double local_u[][N], double local_v[][N], int start, int row_size){
 	double uhi, ulo, vhi, vlo;
-    int portion_size = (N - N % size) / size;
-    int rest_size = N % size;
-    if (rank == 0){
-        uhi = 0.5; ulo = -0.5; vhi = 0.1; vlo = -0.1;
-        MPI_Bcast(&uhi, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        MPI_Bcast(&ulo, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        MPI_Bcast(&vhi, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        MPI_Bcast(&vlo, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    }
 
-    int start, end;
-    if (rest_size == 0){
-        start = portion_size * rank;
-        end = start + portion_size;
-    }else{
-        if (rank == 0){
-            start = 0;
-            end = rest_size;
-        }else{
-            start = portion_size * (rank - 1) + rest_size;
-            end = start + portion_size;
+    uhi = 0.5; ulo = -0.5; vhi = 0.1; vlo = -0.1;
+
+
+	for (int i=0; i < row_size; i++){
+		for (int j=0; j < N; j++) {
+            local_u[i][j] = ulo + (uhi - ulo) * 0.5 * (1.0 + tanh((i + start - N / 2) / 16.0)); // Use start to compensate the offset
+            local_v[i][j] = vlo + (vhi - vlo) * 0.5 * (1.0 + tanh((j - N / 2) / 16.0));
         }
-    }
-
-	for (int i=start; i < end; i++){
-		for (int j=0; j < N; j++){
-			local_u[i][j] = ulo + (uhi-ulo)*0.5*(1.0 + tanh((i-N/2)/16.0));
-			local_v[i][j] = vlo + (vhi-vlo)*0.5*(1.0 + tanh((j-N/2)/16.0));
-            MPI_Allreduce(&local_u[i][j], &u[i][j], 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-            MPI_Allreduce(&local_v[i][j], &v[i][j], 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-            //MPI_Bcast(&local_u[i][j], 1, MPI_DOUBLE, rank, MPI_COMM_WORLD);
-            //MPI_Bcast(&local_v[i][j], 1, MPI_DOUBLE, rank, MPI_COMM_WORLD);
-		}
 	}
-
-    for (int i = 0; i < N; i++) {
-        printf("The u[%d] = %2f from Rank %d.\n",i , local_u[i][0], rank);
-    }
 }
 
 void dxdt(double du[N][N], double dv[N][N], double u[N][N], double v[N][N]){
@@ -105,38 +77,86 @@ double norm(double x[N][N]){
 
 int main(int argc, char** argv){
 
+    // Init of MPI
     int rank, size;
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-	double t = 0.0, nrmu, nrmv;
-    double local_u[N][N], local_v[N][N];
-	double u[N][N], v[N][N], du[N][N], dv[N][N];
-	
-	FILE *fptr = fopen("nrms.txt", "w");
-	fprintf(fptr, "#t\t\tnrmu\t\tnrmv\n");
 
-	// initialize the state
-	init(local_u, local_v, u, v, rank, size);
+    if (rank == 0){
+        double t = 0.0, nrmu, nrmv;
+        double u[N][N], v[N][N], du[N][N], dv[N][N];
+        int start, end;
+        int portion_size = (N - N % (size - 1)) / (size - 1);
+        int last_size = portion_size + N % (size - 1);
 
-	// time-loop
-	for (int k=0; k < M; k++){
-		// track the time
-		t = dt*k;
-		// evaluate the PDE
-		dxdt(du, dv, u, v);
-		// update the state variables u,v
-		step(du, dv, u, v);
-		if (k%m == 0){
-			// calculate the norms
-			nrmu = norm(u);
-			nrmv = norm(v);
-			printf("t = %2.1f\tu-norm = %2.5f\tv-norm = %2.5f\n", t, nrmu, nrmv);
-			fprintf(fptr, "%f\t%f\t%f\n", t, nrmu, nrmv);
-		}
-	}
+        FILE *fptr = fopen("nrms.txt", "w");
+        fprintf(fptr, "#t\t\tnrmu\t\tnrmv\n");
+
+        // Divided the u and v into average size(The size for last processor may be more than others)
+        for (int i = 1; i < size; i++){
+            start = (i - 1) * portion_size;
+            if (i != size - 1){
+                end = start + portion_size;
+            }else{
+                end = start + last_size;
+            }
+            // Use MPI_Send() to send the start index and end index of each divided array
+            MPI_Send(&start, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+            MPI_Send(&end, 1, MPI_INT, i, 1, MPI_COMM_WORLD);
+        }
+
+        // Loop to receive assigned u and v from other processors
+        for (int i = 1; i < size; i++) {
+            start = (i - 1) * portion_size;
+            if (i != size - 1){
+                MPI_Recv(&u[start], portion_size * N, MPI_DOUBLE, i, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                MPI_Recv(&v[start], portion_size * N, MPI_DOUBLE, i, 3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }else{
+                MPI_Recv(&u[start], last_size * N, MPI_DOUBLE, i, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                MPI_Recv(&v[start], last_size * N, MPI_DOUBLE, i, 3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
+        }
+
+
+        // time-loop
+        for (int k=0; k < M; k++){
+            // track the time
+            t = dt*k;
+            // evaluate the PDE
+            dxdt(du, dv, u, v);
+            // update the state variables u,v
+            step(du, dv, u, v);
+            if (k%m == 0){
+                // calculate the norms
+                nrmu = norm(u);
+                nrmv = norm(v);
+                printf("t = %2.1f\tu-norm = %2.5f\tv-norm = %2.5f\n", t, nrmu, nrmv);
+                fprintf(fptr, "%f\t%f\t%f\n", t, nrmu, nrmv);
+            }
+        }
+        fclose(fptr);
+
+    }else{
+        int start, end;
+
+        // Receive the index from the root processor
+        MPI_Recv(&start, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(&end, 1, MPI_INT, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        int row_size = end - start;
+        double local_u[row_size][N], local_v[row_size][N];
+
+        // initialize the state
+        init(local_u, local_v, start, row_size);
+
+        // Send back the u and v value to root processor
+        MPI_Send(&local_u, row_size * N, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD);
+        MPI_Send(&local_v, row_size * N, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD);
+
+    }
+
 	MPI_Finalize();
-	fclose(fptr);
 	return 0;
 }
