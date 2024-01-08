@@ -1,6 +1,9 @@
 #!/bin/bash
 
 # Request resources:
+#SBATCH --job-name="part2"
+#SBATCH -o part2.%J.out
+#SBATCH -e part2.%J.err
 #SBATCH -N 1		# number of compute nodes. 
 #SBATCH -n 4		# number of MPI ranks (1 per CPU core)
 #SBATCH --mem=1G	# memory required per node, in units M, G or T
@@ -17,4 +20,4 @@ module load gcc openmpi
 mpicc -lm part2.c -o part2
 
 # run part2 with 4 processes (from #SBATCH -n, above)
-mpirun ./part1
+time mpirun ./part2
